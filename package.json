@@ -3,6 +3,9 @@
   "private": true,
   "version": "0.1.0",
   "description": "Live in-person trivia event system with host, competitor, audience, and showrunner modes",
+  "engines": {
+    "node": ">=22"
+  },
   "workspaces": [
     "packages/shared",
     "server",
