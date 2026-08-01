@@ -355,4 +355,28 @@ describe('recovery', () => {
     revived.dispatch({ type: 'judge', correct: true }, host);
     expect(revived.snapshot('host').teams.find((t) => t.id === f.teamIds[1])!.score).toBe(100);
   });
+
+  it('replays score-derived round state from zero, not on top of ledger totals', () => {
+    const [t1] = f.teamIds as [number, number, number];
+    f.engine.dispatch({ type: 'startGame' }, sr);
+    f.engine.dispatch({ type: 'adjustScore', teamId: t1, delta: 500, reason: 'seed' }, sr);
+    f.engine.dispatch({ type: 'startRound', roundIndex: 2 }, sr);
+    f.engine.dispatch({ type: 'continue' }, host); // wager-collect: maxWager computed from scores
+
+    const before = f.engine.snapshot('showrunner').round as WagerRoundState;
+    expect(before.teams.find((t) => t.teamId === t1)!.maxWager).toBe(500);
+
+    const session = f.sessions.getByCode(f.engine.code)!;
+    const revived = new GameEngine(
+      { content: f.content, sessions: f.sessions, events: f.events, emitter: stubEmitter() },
+      session,
+    );
+    revived.replayJournal();
+
+    // Without replaying from zero this would be 1000 (ledger 500 + replayed 500).
+    const after = revived.snapshot('showrunner').round as WagerRoundState;
+    expect(after.phase).toBe('wager-collect');
+    expect(after.teams.find((t) => t.teamId === t1)!.maxWager).toBe(500);
+    expect(revived.snapshot('showrunner').teams.find((t) => t.id === t1)!.score).toBe(500);
+  });
 });

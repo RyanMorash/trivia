@@ -247,9 +247,14 @@ export class GameEngine {
     this.replaying = true;
     // Replay from the session's initial state; the journal carries every
     // transition since creation (status writes are not persisted during replay).
+    // Scores must also start from zero: every score delta comes from a
+    // journaled command, and replaying them on top of the ledger totals the
+    // constructor loaded would double-count — corrupting any state derived
+    // from teamScore() mid-replay (e.g. wager maxWager).
     this.status = 'lobby';
     this.roundIndex = -1;
     this.handler = null;
+    for (const team of this.teams) team.score = 0;
     try {
       for (const ev of this.deps.events.listForSession(this.session.id)) {
         try {
