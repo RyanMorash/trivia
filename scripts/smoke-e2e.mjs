@@ -26,13 +26,22 @@ const check = (name, cond) => {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-async function api(method, url, body) {
-  const res = await fetch(`${BASE}${url}`, {
-    method,
-    headers: body ? { 'Content-Type': 'application/json' } : undefined,
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  return res.json();
+async function api(method, url, body, attempt = 0) {
+  try {
+    const res = await fetch(`${BASE}${url}`, {
+      method,
+      headers: body ? { 'Content-Type': 'application/json' } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    return await res.json();
+  } catch (err) {
+    // Keep-alive close race: the server may close a pooled connection just as
+    // we reuse it. One retry on a fresh connection is safe for test seeding.
+    if (attempt === 0 && err.cause?.code === 'ECONNRESET') {
+      return api(method, url, body, 1);
+    }
+    throw err;
+  }
 }
 
 function startServer() {
@@ -144,7 +153,8 @@ try {
   await waitFor(host, (s) => s.round?.phase === 'idle', 'idle');
   const qid = host.snapshot.round.board[0].cells[0].questionId;
   check('selectClue ok', (await send(host, { type: 'selectClue', questionId: qid })).ok);
-  await waitFor(audience, (s) => s.round?.phase === 'clue-shown', 'clue-shown');
+  await waitFor(audience, (s) => s.round?.phase === 'clue-shown', 'clue-shown (audience)');
+  await waitFor(teamTab, (s) => s.round?.phase === 'clue-shown', 'clue-shown (competitor)');
   check('host sees the answer', host.snapshot.round.currentClue.answer === 'Washington');
   check('audience does NOT see the answer', audience.snapshot.round.currentClue.answer === null);
   check('competitor does NOT see the answer', teamTab.snapshot.round.currentClue.answer === null);

@@ -1,5 +1,12 @@
 import { customAlphabet } from 'nanoid';
-import type { BuzzerMapping, Session, SessionStatus, SessionWithKeys, Team } from '@trivia/shared';
+import type {
+  BuzzerMapping,
+  ScoreEvent,
+  Session,
+  SessionStatus,
+  SessionWithKeys,
+  Team,
+} from '@trivia/shared';
 import type { DB } from '../connection.js';
 
 // Unambiguous alphabet for join codes (no 0/O, 1/I/L).
@@ -183,9 +190,28 @@ export class SessionRepo {
     return new Map(rows.map((r) => [r.team_id, r.total]));
   }
 
-  scoreHistory(sessionId: number): unknown[] {
-    return this.db
+  scoreHistory(sessionId: number): ScoreEvent[] {
+    const rows = this.db
       .prepare('SELECT * FROM score_events WHERE session_id = ? ORDER BY id DESC LIMIT 200')
-      .all(sessionId);
+      .all(sessionId) as {
+      id: number;
+      session_id: number;
+      team_id: number;
+      delta: number;
+      reason: string;
+      round_index: number | null;
+      question_id: number | null;
+      created_at: string;
+    }[];
+    return rows.map((r) => ({
+      id: r.id,
+      sessionId: r.session_id,
+      teamId: r.team_id,
+      delta: r.delta,
+      reason: r.reason,
+      roundIndex: r.round_index,
+      questionId: r.question_id,
+      createdAt: r.created_at,
+    }));
   }
 }

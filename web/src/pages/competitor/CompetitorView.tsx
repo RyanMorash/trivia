@@ -108,6 +108,10 @@ function WagerPanel({
 
   if (!mine) return <div className="status-line">Your team is not in this round.</div>;
 
+  const wagerNum = Number(wager);
+  const wagerValid =
+    wager.trim() !== '' && Number.isInteger(wagerNum) && wagerNum >= 0 && wagerNum <= mine.maxWager;
+
   return (
     <div className="stack">
       {round.phase === 'wager-collect' && (
@@ -127,8 +131,9 @@ function WagerPanel({
             />
             <button
               className="gold btn-huge"
+              disabled={!wagerValid}
               onClick={async () => {
-                const res = await send({ type: 'submitWager', amount: Number(wager) });
+                const res = await send({ type: 'submitWager', amount: wagerNum });
                 setFeedback(res.ok ? 'Wager locked in ✓' : res.error ?? 'Failed');
               }}
             >
@@ -165,6 +170,7 @@ function WagerPanel({
             />
             <button
               className="gold btn-huge"
+              disabled={answer.trim() === ''}
               onClick={async () => {
                 const res = await send({ type: 'submitAnswer', text: answer });
                 setFeedback(res.ok ? 'Answer submitted ✓' : res.error ?? 'Failed');

@@ -42,10 +42,13 @@ export class WagerRound implements RoundHandler {
   constructor(config: WagerRoundConfig, content: ContentRepo) {
     this.config = config;
     this.question = content.getQuestion(config.questionId);
-    if (this.question) {
-      const category = content.getCategory(this.question.categoryId);
-      this.topic = category?.name ?? '';
+    if (!this.question) {
+      // Fail startRound visibly rather than running a final round that can
+      // never show its clue or score any wagers.
+      throw new CommandError('The wager round question no longer exists — fix the game config');
     }
+    const category = content.getCategory(this.question.categoryId);
+    this.topic = category?.name ?? '';
   }
 
   private entry(teamId: number): WagerEntry {

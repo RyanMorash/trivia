@@ -119,7 +119,8 @@ export type BuzzRejectReason =
   | 'locked-out'
   | 'duplicate'
   | 'unmapped'
-  | 'no-session';
+  | 'no-session'
+  | 'invalid';
 
 export interface BuzzResult {
   accepted: boolean;

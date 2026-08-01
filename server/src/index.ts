@@ -30,9 +30,21 @@ export function createServer(opts: { dbPath: string; port?: number }): ServerHan
   app.use(express.json({ limit: '2mb' }));
 
   const httpServer = http.createServer(app);
-  const io = new Server(httpServer, {
-    cors: { origin: true },
-  });
+  // Generous keep-alive: the default 5s window races client connection reuse
+  // and surfaces as sporadic ECONNRESET on console/tablet API calls.
+  httpServer.keepAliveTimeout = 65_000;
+  httpServer.headersTimeout = 66_000;
+  // Same-origin by default — the server serves the built web app, and the Vite
+  // dev server proxies /socket.io, so no CORS is normally needed. Cross-origin
+  // setups can allow specific origins via TRIVIA_ALLOWED_ORIGINS=a,b (or * to
+  // reflect any origin on a trusted event LAN).
+  const allowedOrigins = process.env.TRIVIA_ALLOWED_ORIGINS;
+  const io = new Server(
+    httpServer,
+    allowedOrigins
+      ? { cors: { origin: allowedOrigins === '*' ? true : allowedOrigins.split(',') } }
+      : {},
+  );
 
   const registry = new EngineRegistry({ content, sessions, events, emitter: createEmitter(io) });
   registry.recoverAll();

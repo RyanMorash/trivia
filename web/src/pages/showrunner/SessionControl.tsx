@@ -15,7 +15,10 @@ type FullSession = SessionWithKeys & {
 export default function SessionControl() {
   const { code = '' } = useParams();
   const [params] = useSearchParams();
-  const key = params.get('key') ?? '';
+  // Prefer a key stored on this device (session creation stores it) so the
+  // showrunner secret doesn't have to travel in the URL; ?key= still works
+  // for opening the console on another device.
+  const key = params.get('key') ?? localStorage.getItem(`sr-key-${code}`) ?? '';
   const [tab, setTab] = useState<'setup' | 'live'>('setup');
   const [full, setFull] = useState<FullSession | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -35,9 +38,10 @@ export default function SessionControl() {
   }, [refreshFull]);
 
   // Once live, jump to the live tab by default.
+  const status = conn.snapshot?.status;
   useEffect(() => {
-    if (conn.snapshot?.status === 'live') setTab('live');
-  }, [conn.snapshot?.status === 'live']); // eslint-disable-line react-hooks/exhaustive-deps
+    if (status === 'live') setTab('live');
+  }, [status]);
 
   if (!full) {
     return (
@@ -139,15 +143,18 @@ function SetupTab({
                       buzzers.map((m) => (
                         <span key={m.id} className="tag mono" style={{ marginRight: 6 }}>
                           {m.buzzerId}{' '}
-                          <a
-                            style={{ cursor: 'pointer' }}
+                          <button
+                            type="button"
+                            className="small"
+                            aria-label={`Unmap buzzer ${m.buzzerId}`}
+                            style={{ padding: '0 0.4em' }}
                             onClick={guard(async () => {
                               await api.del(`/api/sessions/${code}/buzzers/${encodeURIComponent(m.buzzerId)}?key=${srKey}`);
                               await refreshFull();
                             })}
                           >
                             ✕
-                          </a>
+                          </button>
                         </span>
                       ))
                     )}

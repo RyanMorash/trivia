@@ -340,6 +340,9 @@ describe('recovery', () => {
     revived.replayJournal();
 
     const snap = revived.snapshot('host');
+    // seq is seeded from the journal so a revived engine never restarts at 0.
+    expect(snap.seq).toBe(f.events.lastSeq(session.id));
+    expect(snap.seq).toBeGreaterThan(0);
     expect(snap.status).toBe('live');
     expect(snap.roundIndex).toBe(0);
     const round = snap.round as BoardRoundState;

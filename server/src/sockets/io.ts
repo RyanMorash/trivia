@@ -127,7 +127,7 @@ export function setupSockets(io: Server, registry: EngineRegistry, sessions: Ses
     const code = socket.data.code as string;
     socket.on('buzz', (payload: Partial<BuzzPayload>, ack?: (res: unknown) => void) => {
       if (!payload || typeof payload.buzzerId !== 'string' || payload.buzzerId.length === 0) {
-        ack?.({ accepted: false, reason: 'no-session' });
+        ack?.({ accepted: false, reason: 'invalid' });
         return;
       }
       const engine = registry.get(code);

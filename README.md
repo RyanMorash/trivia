@@ -109,3 +109,17 @@ Design notes:
   synchronized clocks; firmware should optimize send latency.
 - **No accounts**: role URLs carry short secrets; competitors/audience just
   need the session code. Right-sized for a LAN event app.
+
+## Security model
+
+This is a **trusted-LAN event app**, not an internet service — run it on the
+venue's network (ideally a dedicated AP) and don't expose it publicly:
+
+- Showrunner and host actions require per-session secret keys.
+- Competitor tablets and buzzer hardware authenticate with the session code
+  (plus team ID) only — deliberate, so microcontroller firmware stays trivial.
+- Content-authoring endpoints (`/api/question-sets`, `/api/games`) are
+  unauthenticated: anyone on the LAN can edit questions. Acceptable for a
+  crew-only network; front the server with a reverse proxy + auth if not.
+- Socket.IO is same-origin by default; set `TRIVIA_ALLOWED_ORIGINS` for
+  cross-origin setups.

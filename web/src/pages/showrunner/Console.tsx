@@ -74,7 +74,10 @@ export default function Console() {
             disabled={!sessionGameId}
             onClick={guard(async () => {
               const s = await api.post<SessionWithKeys>('/api/sessions', { gameId: Number(sessionGameId) });
-              navigate(`/console/session/${s.code}?key=${s.showrunnerKey}`);
+              // Keep the key out of the URL (browser history, logs); the
+              // console reads it back from localStorage.
+              localStorage.setItem(`sr-key-${s.code}`, s.showrunnerKey);
+              navigate(`/console/session/${s.code}`);
             })}
           >
             Create session
@@ -201,5 +204,5 @@ function OpenSession({ code }: { code: string }) {
   // The key isn't in the session list; the console stores keys it created.
   const stored = localStorage.getItem(`sr-key-${code}`);
   if (!stored) return <span className="muted small">key not on this device</span>;
-  return <Link to={`/console/session/${code}?key=${stored}`}>Open</Link>;
+  return <Link to={`/console/session/${code}`}>Open</Link>;
 }

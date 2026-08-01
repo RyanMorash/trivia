@@ -63,20 +63,24 @@ export function contentRouter(content: ContentRepo): Router {
     const body = req.body as ImportSet;
     const name = str(body?.name).trim();
     if (!name) return res.status(400).json({ error: 'name is required' });
-    const set = content.createSet(name, str(body.description));
-    (body.categories ?? []).forEach((cat, ci) => {
-      const category = content.createCategory(set.id, str(cat.name, `Category ${ci + 1}`), ci);
-      (cat.questions ?? []).forEach((q, qi) => {
-        content.createQuestion({
-          categoryId: category.id,
-          sortOrder: qi,
-          prompt: str(q.prompt),
-          answer: str(q.answer),
-          value: int(q.value, 100),
-          mediaUrl: q.mediaUrl ? str(q.mediaUrl) : null,
-          notes: q.notes ? str(q.notes) : null,
+    // Atomic: one bad row rolls back the whole import.
+    const set = content.runInTransaction(() => {
+      const created = content.createSet(name, str(body.description));
+      (body.categories ?? []).forEach((cat, ci) => {
+        const category = content.createCategory(created.id, str(cat.name, `Category ${ci + 1}`), ci);
+        (cat.questions ?? []).forEach((q, qi) => {
+          content.createQuestion({
+            categoryId: category.id,
+            sortOrder: qi,
+            prompt: str(q.prompt),
+            answer: str(q.answer),
+            value: int(q.value, 100),
+            mediaUrl: q.mediaUrl ? str(q.mediaUrl) : null,
+            notes: q.notes ? str(q.notes) : null,
+          });
         });
       });
+      return created;
     });
     res.status(201).json(content.getSet(set.id));
   });
@@ -203,6 +207,9 @@ export function contentRouter(content: ContentRepo): Router {
     const round = content.getRound(int(req.params.id));
     if (!round) return res.status(404).json({ error: 'not found' });
     const config = (req.body?.config as RoundConfig | undefined) ?? round.config;
+    if (!['board', 'quickfire', 'wager'].includes(config?.type)) {
+      return res.status(400).json({ error: 'config with a valid type is required' });
+    }
     content.updateRound(round.id, int(req.body?.sortOrder, round.sortOrder), str(req.body?.title, round.title), config);
     res.json(content.getRound(round.id));
   });

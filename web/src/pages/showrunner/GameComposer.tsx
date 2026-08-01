@@ -121,12 +121,35 @@ function RoundCard({
 }) {
   const [title, setTitle] = useState(round.title);
   const [config, setConfig] = useState<RoundConfig>(round.config);
+  // Board row values are edited as raw text and parsed on save — parsing per
+  // keystroke would eat the comma the user just typed.
+  const [valuesText, setValuesText] = useState(
+    round.config.type === 'board' ? round.config.values.join(',') : '',
+  );
 
-  const save = () =>
-    api
-      .put(`/api/rounds/${round.id}`, { title, config, sortOrder: round.sortOrder })
+  // Resync local drafts when the server truth for this round changes (e.g.
+  // after a save normalizes the config) without clobbering unrelated edits.
+  const serverConfig = JSON.stringify(round.config);
+  useEffect(() => {
+    setTitle(round.title);
+    setConfig(round.config);
+    setValuesText(round.config.type === 'board' ? round.config.values.join(',') : '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [round.id, round.title, round.sortOrder, serverConfig]);
+
+  const parseValues = (text: string): number[] =>
+    text
+      .split(',')
+      .map((v) => Number(v.trim()))
+      .filter((v) => Number.isFinite(v) && v > 0);
+
+  const save = () => {
+    const finalConfig = config.type === 'board' ? { ...config, values: parseValues(valuesText) } : config;
+    return api
+      .put(`/api/rounds/${round.id}`, { title, config: finalConfig, sortOrder: round.sortOrder })
       .then(onChanged)
       .catch((e) => onError((e as Error).message));
+  };
 
   const remove = () => {
     if (!confirm(`Delete round "${round.title}"?`)) return;
@@ -170,16 +193,9 @@ function RoundCard({
             Row values{' '}
             <input
               style={{ width: 220 }}
-              value={config.values.join(',')}
-              onChange={(e) =>
-                setConfig({
-                  ...config,
-                  values: e.target.value
-                    .split(',')
-                    .map((v) => Number(v.trim()))
-                    .filter((v) => Number.isFinite(v) && v > 0),
-                })
-              }
+              value={valuesText}
+              placeholder="100,200,300,400,500"
+              onChange={(e) => setValuesText(e.target.value)}
             />
           </label>
           <label>

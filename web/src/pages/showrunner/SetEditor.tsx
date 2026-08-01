@@ -100,6 +100,12 @@ function QuestionRow({
   onError: (msg: string) => void;
 }) {
   const [draft, setDraft] = useState(q);
+  // Resync when the server truth for this question changes (a save elsewhere
+  // triggered a refresh); dep values only change when the row itself changed.
+  useEffect(() => {
+    setDraft(q);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q.id, q.prompt, q.answer, q.value, q.notes, q.sortOrder]);
   const dirty =
     draft.prompt !== q.prompt || draft.answer !== q.answer || draft.value !== q.value || draft.notes !== q.notes;
 

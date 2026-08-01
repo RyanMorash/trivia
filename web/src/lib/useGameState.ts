@@ -42,6 +42,11 @@ export function useGameState(
   const socketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
+    // New connection identity — drop any previous session's state so views
+    // never render stale data (and a fresh server's lower seq is never
+    // mistaken for an old snapshot).
+    setSnapshot(null);
+    setLastBuzzerSeen(null);
     const socket = io('/', {
       auth: { code, role, key: opts.key, teamId: opts.teamId },
     });
@@ -56,9 +61,9 @@ export function useGameState(
       setConnected(false);
       setAuthError(err.message);
     });
-    socket.on('state:snapshot', (snap: GameSnapshot) => {
-      setSnapshot((prev) => (prev && prev.seq > snap.seq ? prev : snap));
-    });
+    // Snapshots arrive in order on a connection, and every (re)connect gets a
+    // fresh authoritative snapshot — always accept the latest.
+    socket.on('state:snapshot', (snap: GameSnapshot) => setSnapshot(snap));
     socket.on('buzzer:seen', (ev: BuzzerSeenEvent) => setLastBuzzerSeen(ev));
     socket.on('toast', (ev: ToastEvent) => {
       const t: Toast = { ...ev, id: ++toastId };

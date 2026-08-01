@@ -79,6 +79,11 @@ const toRound = (r: RoundRow): GameRound => ({
 export class ContentRepo {
   constructor(private db: DB) {}
 
+  /** Run several writes atomically (e.g. a whole question-set import). */
+  runInTransaction<T>(fn: () => T): T {
+    return this.db.transaction(fn)();
+  }
+
   // ---- question sets --------------------------------------------------------
 
   listSets(): QuestionSet[] {

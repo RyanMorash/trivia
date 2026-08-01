@@ -143,7 +143,7 @@ export function sessionsRouter(
     const engine = registry.get(str(req.params.code));
     if (!engine) return res.status(404).json({ accepted: false, reason: 'no-session' });
     const buzzerId = str(req.body?.buzzerId).trim();
-    if (!buzzerId) return res.status(400).json({ accepted: false, reason: 'unmapped' });
+    if (!buzzerId) return res.status(400).json({ accepted: false, reason: 'invalid' });
     res.json(engine.ingestBuzz(buzzerId.slice(0, 64)));
   });
 

@@ -72,6 +72,10 @@ export class GameEngine {
     this.gameName = game?.name ?? 'Untitled game';
     this.rounds = deps.content.listRounds(session.gameId);
     this.journalSeq = deps.events.lastSeq(session.id);
+    // Snapshots are only compared within one socket connection (delivery is
+    // ordered), but seed past the journal anyway so seq stays monotonic-ish
+    // across restarts.
+    this.snapshotSeq = this.journalSeq;
     this.loadTeams();
   }
 
@@ -219,10 +223,24 @@ export class GameEngine {
 
   // ---- journaling + recovery ------------------------------------------------
 
+  /**
+   * Journal an applied transition. A write failure (disk full, locked DB)
+   * must not desync clients from the applied in-memory state, so it never
+   * throws — but the operator is warned that restart recovery is no longer
+   * trustworthy.
+   */
   private journal(type: string, payload: unknown): void {
     if (this.replaying) return;
     this.journalSeq += 1;
-    this.deps.events.append(this.session.id, this.journalSeq, type, payload);
+    try {
+      this.deps.events.append(this.session.id, this.journalSeq, type, payload);
+    } catch (err) {
+      console.error(`[journal] session ${this.code} seq ${this.journalSeq} write failed`, err);
+      this.deps.emitter.toastShowrunner(this.code, {
+        level: 'error',
+        msg: 'Journal write failed — the game continues, but crash recovery may lose this step',
+      });
+    }
   }
 
   replayJournal(): void {
