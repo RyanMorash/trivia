@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "start": "NODE_ENV=production tsx src/index.ts",
@@ -12,7 +15,7 @@
   },
   "dependencies": {
     "@trivia/shared": "*",
-    "better-sqlite3": "^11.8.0",
+    "better-sqlite3": "^13.0.2",
     "express": "^4.21.0",
     "nanoid": "^5.0.9",
     "socket.io": "^4.8.0"
