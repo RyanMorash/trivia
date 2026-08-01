@@ -1,3 +1,14 @@
+/** Thrown for non-2xx responses; carries the HTTP status so callers can tell 404 apart from transient failures. */
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
 async function request<T>(method: string, url: string, body?: unknown): Promise<T> {
   const res = await fetch(url, {
     method,
@@ -5,7 +16,7 @@ async function request<T>(method: string, url: string, body?: unknown): Promise<
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   const data = (await res.json().catch(() => ({}))) as T & { error?: string };
-  if (!res.ok) throw new Error(data.error ?? `${method} ${url} failed (${res.status})`);
+  if (!res.ok) throw new ApiError(data.error ?? `${method} ${url} failed (${res.status})`, res.status);
   return data;
 }
 

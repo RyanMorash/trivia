@@ -8,7 +8,7 @@ import type {
   QuestionSet,
   RoundConfig,
 } from '@trivia/shared';
-import { api } from '../../lib/api';
+import { api, ApiError } from '../../lib/api';
 
 type GameDetail = Game & { rounds: GameRound[] };
 type SetDetail = QuestionSet & { categories: (Category & { questions: Question[] })[] };
@@ -250,7 +250,14 @@ function RoundCard({
       )}
 
       {config.type === 'wager' && (
-        <WagerConfigForm config={config} sets={sets} setDetails={setDetails} loadSet={loadSet} onChange={setConfig} />
+        <WagerConfigForm
+          config={config}
+          sets={sets}
+          setDetails={setDetails}
+          loadSet={loadSet}
+          onChange={setConfig}
+          onError={onError}
+        />
       )}
     </div>
   );
@@ -324,12 +331,14 @@ function WagerConfigForm({
   setDetails,
   loadSet,
   onChange,
+  onError,
 }: {
   config: Extract<RoundConfig, { type: 'wager' }>;
   sets: QuestionSet[];
   setDetails: Record<number, SetDetail>;
   loadSet: (id: number) => Promise<void>;
   onChange: (c: Extract<RoundConfig, { type: 'wager' }>) => void;
+  onError: (msg: string) => void;
 }) {
   const [pickSetId, setPickSetId] = useState<number>(0);
   const [saved, setSaved] = useState<(Question & { categoryName: string; questionSetId: number | null }) | null>(null);
@@ -357,15 +366,22 @@ function WagerConfigForm({
           void loadSet(q.questionSetId);
         }
       })
-      .catch(() => {
+      .catch((err) => {
         if (cancelled) return;
         setSaved(null);
-        setSavedMissing(true);
+        // Only a definitive 404 means the question was deleted; a transient
+        // failure must not scare the operator into re-picking the question.
+        if (err instanceof ApiError && err.status === 404) {
+          setSavedMissing(true);
+        } else {
+          setSavedMissing(false);
+          onError((err as Error).message);
+        }
       });
     return () => {
       cancelled = true;
     };
-  }, [config.questionId, loadSet]);
+  }, [config.questionId, loadSet, onError]);
 
   return (
     <div style={{ marginTop: 10 }} className="stack">
