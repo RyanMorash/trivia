@@ -144,6 +144,15 @@ export function contentRouter(content: ContentRepo): Router {
     );
   });
 
+  // Single-question lookup with its owning set — used by the game composer to
+  // resolve a wager round's saved question without browsing sets.
+  r.get('/questions/:id', (req, res) => {
+    const q = content.getQuestion(int(req.params.id));
+    if (!q) return res.status(404).json({ error: 'not found' });
+    const category = content.getCategory(q.categoryId);
+    res.json({ ...q, categoryName: category?.name ?? '', questionSetId: category?.questionSetId ?? null });
+  });
+
   r.put('/questions/:id', (req, res) => {
     const q = content.getQuestion(int(req.params.id));
     if (!q) return res.status(404).json({ error: 'not found' });

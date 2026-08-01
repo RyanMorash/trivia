@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import type {
   Category,
@@ -20,32 +20,49 @@ export default function GameComposer() {
   const [setDetails, setSetDetails] = useState<Record<number, SetDetail>>({});
   const [error, setError] = useState<string | null>(null);
 
+  // Guard against out-of-order responses: rapid round saves fire concurrent
+  // refreshes, and an older response must not overwrite newer game state
+  // (round cards resync their drafts from it).
+  const refreshGeneration = useRef(0);
   const refresh = useCallback(async () => {
-    setGame(await api.get<GameDetail>(`/api/games/${id}`));
-    setSets(await api.get<QuestionSet[]>('/api/question-sets'));
+    const generation = ++refreshGeneration.current;
+    const [nextGame, nextSets] = await Promise.all([
+      api.get<GameDetail>(`/api/games/${id}`),
+      api.get<QuestionSet[]>('/api/question-sets'),
+    ]);
+    if (generation !== refreshGeneration.current) return;
+    setGame(nextGame);
+    setSets(nextSets);
   }, [id]);
 
   useEffect(() => {
+    setGame(null);
     refresh().catch((e) => setError((e as Error).message));
   }, [refresh]);
 
-  const loadSet = useCallback(
-    async (setId: number) => {
-      if (setDetails[setId]) return;
+  // Stable identity + in-flight dedupe; failures surface via the error toast
+  // (call sites fire-and-forget) and allow a retry.
+  const loadingSets = useRef(new Set<number>());
+  const loadSet = useCallback(async (setId: number) => {
+    if (loadingSets.current.has(setId)) return;
+    loadingSets.current.add(setId);
+    try {
       const detail = await api.get<SetDetail>(`/api/question-sets/${setId}`);
       setSetDetails((prev) => ({ ...prev, [setId]: detail }));
-    },
-    [setDetails],
-  );
+    } catch (e) {
+      loadingSets.current.delete(setId);
+      setError((e as Error).message);
+    }
+  }, []);
 
   useEffect(() => {
     if (!game) return;
     for (const round of game.rounds) {
       const setId =
         round.config.type === 'wager' ? null : round.config.questionSetId;
-      if (setId) void loadSet(setId).catch(() => {});
+      if (setId) void loadSet(setId);
     }
-    // Wager rounds reference a question directly; load all sets lazily via pickers.
+    // Wager rounds reference a question directly; WagerConfigForm resolves it.
   }, [game, loadSet]);
 
   if (!game) return <div className="page">Loading…</div>;
@@ -315,11 +332,40 @@ function WagerConfigForm({
   onChange: (c: Extract<RoundConfig, { type: 'wager' }>) => void;
 }) {
   const [pickSetId, setPickSetId] = useState<number>(0);
+  const [saved, setSaved] = useState<(Question & { categoryName: string; questionSetId: number | null }) | null>(null);
+  const [savedMissing, setSavedMissing] = useState(false);
   const detail = pickSetId ? setDetails[pickSetId] : undefined;
   const allQuestions = detail?.categories.flatMap((c) => c.questions.map((q) => ({ q, cat: c.name }))) ?? [];
-  const selected = Object.values(setDetails)
-    .flatMap((s) => s.categories.flatMap((c) => c.questions.map((q) => ({ q, cat: c.name }))))
-    .find((x) => x.q.id === config.questionId);
+
+  // Resolve the saved question directly — a stored wager round must show its
+  // question (or a deleted-question warning) without the user browsing sets.
+  useEffect(() => {
+    if (!config.questionId) {
+      setSaved(null);
+      setSavedMissing(false);
+      return;
+    }
+    let cancelled = false;
+    api
+      .get<Question & { categoryName: string; questionSetId: number | null }>(`/api/questions/${config.questionId}`)
+      .then((q) => {
+        if (cancelled) return;
+        setSaved(q);
+        setSavedMissing(false);
+        if (q.questionSetId) {
+          setPickSetId((prev) => prev || q.questionSetId!);
+          void loadSet(q.questionSetId);
+        }
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setSaved(null);
+        setSavedMissing(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [config.questionId, loadSet]);
 
   return (
     <div style={{ marginTop: 10 }} className="stack">
@@ -356,9 +402,14 @@ function WagerConfigForm({
           </label>
         )}
       </div>
-      {selected && (
+      {saved && (
         <div className="muted small">
-          Selected: [{selected.cat}] {selected.q.prompt}
+          Selected: [{saved.categoryName}] {saved.prompt}
+        </div>
+      )}
+      {savedMissing && (
+        <div className="toast error">
+          The saved final question no longer exists — pick a new one before running this round.
         </div>
       )}
       <div className="row">
