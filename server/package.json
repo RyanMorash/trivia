@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@trivia/shared": "*",
-    "better-sqlite3": "^11.8.0",
+    "better-sqlite3": "^13.0.2",
     "express": "^4.21.0",
     "nanoid": "^5.0.9",
     "socket.io": "^4.8.0"
