@@ -9,6 +9,9 @@ export class ApiError extends Error {
   }
 }
 
+/** Error messages can end up in on-screen toasts — never echo the query string, which may carry role keys. */
+const redact = (url: string): string => url.split('?')[0]!;
+
 async function request<T>(method: string, url: string, body?: unknown): Promise<T> {
   const res = await fetch(url, {
     method,
@@ -26,12 +29,12 @@ async function request<T>(method: string, url: string, body?: unknown): Promise<
     const message =
       data !== null && typeof data === 'object' && typeof (data as { error?: unknown }).error === 'string'
         ? ((data as { error: string }).error)
-        : `${method} ${url} failed (${res.status})`;
+        : `${method} ${redact(url)} failed (${res.status})`;
     throw new ApiError(message, res.status);
   }
   // Every endpoint returns a JSON body on success — a malformed or truncated
   // 2xx response must fail loudly, not surface as {} to the caller.
-  if (parseFailed) throw new ApiError(`${method} ${url} returned an unreadable response`, res.status);
+  if (parseFailed) throw new ApiError(`${method} ${redact(url)} returned an unreadable response`, res.status);
   return data as T;
 }
 
